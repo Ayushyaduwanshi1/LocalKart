@@ -2,6 +2,7 @@ const ProviderFactory = require('../providers/providerFactory');
 const AIConversationService = require('./AIConversationService');
 const AIPolicyService = require('./AIPolicyService');
 const AIMessage = require('../../models/AIMessage');
+const AIConversation = require('../../models/AIConversation');
 const socketHandler = require('../../sockets/socketHandler');
 
 class AIService {

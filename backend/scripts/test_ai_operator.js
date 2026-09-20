@@ -219,7 +219,8 @@ async function run() {
     body: JSON.stringify({ status: 'PAUSED' }),
   });
   const pauseData = await pauseRes.json();
-  assert(pauseData.success && pauseData.data.status === 'PAUSED', 'Conversation marked as PAUSED');
+  console.log('Pause response:', pauseData);
+  assert(pauseData.success && pauseData.data?.status === 'PAUSED', 'Conversation marked as PAUSED');
 
   // Attempting to send message while PAUSED
   const pausedMsgRes = await fetch(`${BASE_URL}/ai/chat`, {
