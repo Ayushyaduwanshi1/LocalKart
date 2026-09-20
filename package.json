@@ -1,0 +1,27 @@
+{
+  "name": "localkart",
+  "version": "1.0.0",
+  "description": "Neighborhood Store Management System (LocalKart)",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"BACKEND,FRONTEND\" -c \"cyan.bold,green.bold\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "seed": "npm --prefix backend run seed",
+    "build:frontend": "npm --prefix frontend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "keywords": [
+    "pos",
+    "kirana",
+    "store-management",
+    "neighborhood-store",
+    "inventory",
+    "ecommerce"
+  ],
+  "author": "LocalKart Team",
+  "license": "ISC"
+}
