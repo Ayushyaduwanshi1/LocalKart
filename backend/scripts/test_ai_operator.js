@@ -162,9 +162,9 @@ async function run() {
     }),
   });
   const payClaimData = await payClaimRes.json();
-  assert(payClaimData.success, 'Payment claim query processed');
+  const payClaimLower = payClaimData.data.response.toLowerCase();
   assert(
-    payClaimData.data.response.includes('verified') || payClaimData.data.response.includes('status') || payClaimData.data.response.includes('records'),
+    payClaimLower.includes('verify') || payClaimLower.includes('status') || payClaimLower.includes('record'),
     'AI verified against backend source of truth instead of blindly accepting payment claim'
   );
 

@@ -11,6 +11,7 @@ class AIService {
   static async handleMessage({ conversationId, customerId, customerPhone, customerName, message, source, user }) {
     // 1. Resolve or create conversation
     const conversation = await AIConversationService.getOrCreateConversation({
+      conversationId,
       customerId,
       customerPhone,
       customerName,

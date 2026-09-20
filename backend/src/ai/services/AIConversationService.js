@@ -7,7 +7,12 @@ class AIConversationService {
   /**
    * Get or create active conversation session
    */
-  static async getOrCreateConversation({ customerId, customerPhone, customerName, source = 'WHATSAPP', userId }) {
+  static async getOrCreateConversation({ conversationId, customerId, customerPhone, customerName, source = 'WHATSAPP', userId }) {
+    if (conversationId) {
+      const existing = await AIConversation.findById(conversationId);
+      if (existing) return existing;
+    }
+
     let query = {};
     if (customerId) {
       query = { customerId, status: { $in: ['ACTIVE', 'PAUSED', 'HUMAN_TAKEOVER'] } };
@@ -18,7 +23,10 @@ class AIConversationService {
       query = { userId, status: { $in: ['ACTIVE', 'PAUSED', 'HUMAN_TAKEOVER'] } };
     }
 
-    let conversation = await AIConversation.findOne(query).sort({ updatedAt: -1 });
+    let conversation = null;
+    if (Object.keys(query).length > 0) {
+      conversation = await AIConversation.findOne(query).sort({ updatedAt: -1 });
+    }
 
     if (!conversation) {
       conversation = await AIConversation.create({

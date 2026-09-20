@@ -224,11 +224,26 @@ class RuleEngineProvider extends AIProvider {
       }, { user, conversationId: conversation._id });
 
       let orderStatusResult = statusRes.result;
+      if (!orderStatusResult.found && conversation.currentOrderDraft?.confirmedOrderId) {
+        const detailRes = await executeTool('getOrderStatus', { orderId: conversation.currentOrderDraft.confirmedOrderId });
+        orderStatusResult = detailRes.result;
+      }
       if (!orderStatusResult.found && conversation.customerId) {
         const lastOrderRes = await executeTool('getLastOrder', { customerId: conversation.customerId });
         if (lastOrderRes.result?.found) {
           const detailRes = await executeTool('getOrderStatus', { orderId: lastOrderRes.result.order.orderId });
           orderStatusResult = detailRes.result;
+        }
+      }
+      if (!orderStatusResult.found && conversation.customerPhone) {
+        const Customer = require('../../models/Customer');
+        const cust = await Customer.findOne({ phone: conversation.customerPhone });
+        if (cust) {
+          const lastOrderRes = await executeTool('getLastOrder', { customerId: cust._id });
+          if (lastOrderRes.result?.found) {
+            const detailRes = await executeTool('getOrderStatus', { orderId: lastOrderRes.result.order.orderId });
+            orderStatusResult = detailRes.result;
+          }
         }
       }
 
@@ -272,7 +287,11 @@ class RuleEngineProvider extends AIProvider {
 
       let payStatusRes;
       if (orderToCheck) {
-        payStatusRes = await executeTool('getPaymentStatus', { orderNumber: orderToCheck });
+        const isNum = typeof orderToCheck === 'string' && orderToCheck.startsWith('ORD-');
+        payStatusRes = await executeTool('getPaymentStatus', {
+          orderNumber: isNum ? orderToCheck : undefined,
+          orderId: !isNum ? orderToCheck : undefined,
+        });
       } else if (conversation.customerId) {
         const lastOrder = await executeTool('getLastOrder', { customerId: conversation.customerId });
         if (lastOrder.result?.found) {
