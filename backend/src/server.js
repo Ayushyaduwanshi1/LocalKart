@@ -54,7 +54,6 @@ const startServer = async () => {
 
 startServer();
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('[Unhandled Rejection]', err);
-});
+// Export app for Vercel serverless functions
+module.exports = app;
+

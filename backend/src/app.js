@@ -5,8 +5,22 @@ const morgan = require('morgan');
 const apiRoutes = require('./routes/api');
 const { errorHandler } = require('./middleware/errorMiddleware');
 const { apiLimiter } = require('./middleware/rateLimiter');
+const { connectDB } = require('./config/db');
+const mongoose = require('mongoose');
 
 const app = express();
+
+// Ensure DB is connected for serverless environments (Vercel)
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    try {
+      await connectDB();
+    } catch (err) {
+      return res.status(500).json({ success: false, message: 'Database connection error', error: err.message });
+    }
+  }
+  next();
+});
 
 // Security middleware
 app.use(helmet());
