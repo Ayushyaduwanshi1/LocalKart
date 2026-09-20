@@ -58,6 +58,36 @@ const emitNotification = (notification) => {
   }
 };
 
+const emitAIMessage = (data) => {
+  if (io) {
+    io.emit('aiMessage', data);
+  }
+};
+
+const emitAIThinking = (data) => {
+  if (io) {
+    io.emit('aiThinking', data);
+  }
+};
+
+const emitAIToolCompleted = (data) => {
+  if (io) {
+    io.emit('aiToolCompleted', data);
+  }
+};
+
+const emitAIStatusChanged = (data) => {
+  if (io) {
+    io.emit('aiStatusChanged', data);
+  }
+};
+
+const emitAIOrderCreated = (order) => {
+  if (io) {
+    io.emit('aiOrderCreated', order);
+  }
+};
+
 module.exports = {
   initSocket,
   getIO,
@@ -67,4 +97,9 @@ module.exports = {
   emitDeliveryUpdated,
   emitPaymentUpdated,
   emitNotification,
+  emitAIMessage,
+  emitAIThinking,
+  emitAIToolCompleted,
+  emitAIStatusChanged,
+  emitAIOrderCreated,
 };
