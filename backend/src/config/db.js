@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 let mongoMemoryServer = null;
 
 const connectDB = async () => {
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
 
   try {
     if (uri && !uri.includes('localhost:27017')) {
