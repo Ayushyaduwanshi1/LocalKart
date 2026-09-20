@@ -23,6 +23,7 @@ import { useSocket } from '../context/SocketContext';
 const STEPS = [
   { key: 'PENDING', label: 'Order Placed', desc: 'Order received by store' },
   { key: 'CONFIRMED', label: 'Confirmed', desc: 'Accepted & stock verified' },
+  { key: 'PROCESSING', label: 'Processing', desc: 'Items being picked & bagged' },
   { key: 'PACKED', label: 'Packed', desc: 'Goods bagged & ready for pickup' },
   { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', desc: 'Rider is on the way' },
   { key: 'DELIVERED', label: 'Delivered', desc: 'Delivered to your doorstep' },
@@ -44,9 +45,11 @@ const OrderTrackingPage = () => {
       setError('');
       const res = await api.get(`/orders/track/${orderNumber}`);
       if (res.data.success) {
-        setOrder(res.data.data.order);
-        setDelivery(res.data.data.delivery);
-        setStore(res.data.data.store);
+        const payload = res.data.data;
+        const ord = payload.order || payload;
+        setOrder(ord);
+        setDelivery(payload.delivery || null);
+        setStore(payload.store || null);
         setLastRefreshed(new Date());
       }
     } catch (err) {
@@ -99,16 +102,19 @@ const OrderTrackingPage = () => {
         return 0;
       case 'CONFIRMED':
         return 1;
-      case 'PACKED':
+      case 'PROCESSING':
         return 2;
-      case 'OUT_FOR_DELIVERY':
+      case 'PACKED':
         return 3;
-      case 'DELIVERED':
+      case 'OUT_FOR_DELIVERY':
         return 4;
+      case 'DELIVERED':
+        return 5;
       default:
         return 0;
     }
   };
+
 
   if (loading && !order) {
     return (
@@ -269,8 +275,9 @@ const OrderTrackingPage = () => {
                 </div>
 
                 {/* Steps List */}
-                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 relative z-10">
+                <div className="grid grid-cols-1 sm:grid-cols-6 gap-3 relative z-10">
                   {STEPS.map((step, idx) => {
+
                     const isDone = idx <= currentStepIdx;
                     const isCurrent = idx === currentStepIdx;
 

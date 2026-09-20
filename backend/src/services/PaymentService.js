@@ -114,6 +114,7 @@ class PaymentService {
       cashCollection: methods['CASH'] || 0,
       upiCollection: methods['UPI'] || 0,
       cardCollection: methods['CARD'] || 0,
+      onlineCollection: methods['ONLINE'] || 0,
       codPending: codPendingAgg[0]?.total || 0,
     };
   }

@@ -101,24 +101,48 @@ class OrderService {
 
     // 1. Resolve or create customer
     let customer;
+    const clientPhone = (customerData?.phone || orderData.customerPhone || orderData.phone || '').trim();
+    const clientName = customerData?.name || orderData.customerName || orderData.name;
+    const clientEmail = customerData?.email || orderData.customerEmail || orderData.email;
+    const clientAddress = customerData?.address || orderData.customerAddress || deliveryAddress?.address;
+    const clientPincode = customerData?.pincode || orderData.customerPincode || deliveryAddress?.pincode;
+    const clientCity = customerData?.city || orderData.customerCity || deliveryAddress?.city || 'New Delhi';
+
     if (customerId) {
       customer = await Customer.findById(customerId);
-    } else if (customerData && customerData.phone) {
-      const cleanPhone = customerData.phone.trim();
-      customer = await Customer.findOne({ phone: cleanPhone });
+    } else if (clientPhone) {
+      customer = await Customer.findOne({ phone: clientPhone });
       if (!customer) {
         customer = await Customer.create({
-          name: customerData.name || 'Walk-in Customer',
-          phone: cleanPhone,
-          email: customerData.email || '',
-          address: customerData.address || deliveryAddress?.address || '',
-          city: customerData.city || deliveryAddress?.city || 'New Delhi',
-          pincode: customerData.pincode || deliveryAddress?.pincode || '',
+          name: clientName || 'Walk-in Customer',
+          phone: clientPhone,
+          email: clientEmail || '',
+          address: clientAddress || '',
+          city: clientCity,
+          pincode: clientPincode || '',
         });
+      } else {
+        // Update existing customer info if new details are provided
+        let updated = false;
+        if (clientName && clientName !== 'Walk-in Customer' && customer.name !== clientName) {
+          customer.name = clientName;
+          updated = true;
+        }
+        if (clientAddress && customer.address !== clientAddress) {
+          customer.address = clientAddress;
+          updated = true;
+        }
+        if (clientPincode && customer.pincode !== clientPincode) {
+          customer.pincode = clientPincode;
+          updated = true;
+        }
+        if (clientEmail && customer.email !== clientEmail) {
+          customer.email = clientEmail;
+          updated = true;
+        }
+        if (updated) await customer.save();
       }
-    }
-
-    if (!customer) {
+    } else {
       throw { statusCode: 400, message: 'Customer phone number or customer ID is required' };
     }
 
@@ -184,8 +208,9 @@ class OrderService {
       const delivery = await Delivery.create({
         order: order._id,
         customer: customer._id,
+        customerName: customer.name,
         phone: deliveryAddress?.phone || customer.phone,
-        address: `${deliveryAddress?.address || customer.address}, ${deliveryAddress?.city || customer.city || ''}`.trim(),
+        address: `${deliveryAddress?.address || customer.address}, ${deliveryAddress?.city || customer.city || ''} ${deliveryAddress?.pincode || customer.pincode || ''}`.trim(),
         status: 'PENDING',
         notes: notes || `Order #${order.orderNumber}`,
       });
@@ -234,6 +259,8 @@ class OrderService {
       await InventoryService.restoreOrderStock(order, user);
       await NotificationService.notifyOrderCancelled(order);
       await Delivery.findOneAndUpdate({ order: order._id }, { status: 'FAILED' });
+    } else if (newStatus === 'PROCESSING') {
+      await NotificationService.notifyOrderProcessing(order);
     } else if (newStatus === 'PACKED') {
       await NotificationService.notifyOrderPacked(order);
     } else if (newStatus === 'OUT_FOR_DELIVERY') {
@@ -245,6 +272,13 @@ class OrderService {
         order.paidAmount = order.totalAmount;
         order.remainingAmount = 0;
       }
+      const deliveredDate = new Date();
+      order.deliveredAt = deliveredDate;
+      // Update delivery record if exists
+      await Delivery.findOneAndUpdate(
+        { order: order._id },
+        { status: 'DELIVERED', deliveredAt: deliveredDate }
+      );
     }
 
     order.orderStatus = newStatus;
@@ -261,16 +295,33 @@ class OrderService {
   // Public order tracking view for customer
   static async getOrderForTracking(orderNumber) {
     const order = await Order.findOne({ orderNumber: orderNumber.trim() })
-      .populate('customer', 'name phone address')
-      .populate('items.product', 'name image unit');
+      .populate('customer', 'name phone address city pincode')
+      .populate('items.product', 'name image unit brand sellingPrice gst');
 
     if (!order) {
       throw { statusCode: 404, message: `No order found with number "${orderNumber}"` };
     }
 
-    const delivery = await Delivery.findOne({ order: order._id }).populate('deliveryPartner', 'name phone');
+    const [delivery, storeSettings] = await Promise.all([
+      Delivery.findOne({ order: order._id }).populate('deliveryPartner', 'name phone email'),
+      require('../models/StoreSettings').findOne(),
+    ]);
+
+    const store = storeSettings || {
+      storeName: 'LocalKart Super Store',
+      tagline: 'Your Trusted Neighborhood Kirana & Daily Essentials',
+      phone: '+91 98765 43210',
+      address: 'Shop #14, Ground Floor, Central Market',
+      city: 'New Delhi',
+      pincode: '110001',
+      gstin: '07AABCL1234F1Z8',
+    };
 
     return {
+      order,
+      delivery,
+      store,
+      // Flat properties for backward compatibility
       orderNumber: order.orderNumber,
       invoiceNumber: order.invoiceNumber,
       orderStatus: order.orderStatus,
@@ -283,12 +334,16 @@ class OrderService {
         quantity: i.quantity,
         unit: i.unit,
         price: i.price,
+        discount: i.discount || 0,
+        gstRate: i.gstRate || 0,
+        gst: i.gst || 0,
         total: i.total,
       })),
       subtotal: order.subtotal,
       discount: order.discount,
       gst: order.gst,
       deliveryCharge: order.deliveryCharge,
+      roundOff: order.roundOff,
       totalAmount: order.totalAmount,
       paidAmount: order.paidAmount,
       remainingAmount: order.remainingAmount,
@@ -300,3 +355,4 @@ class OrderService {
 }
 
 module.exports = OrderService;
+

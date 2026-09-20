@@ -42,8 +42,21 @@ const inventoryTransactionSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+// Virtual aliases for standard API requirements
+inventoryTransactionSchema.virtual('productId').get(function () {
+  return this.product;
+});
+inventoryTransactionSchema.virtual('orderId').get(function () {
+  return this.order;
+});
+inventoryTransactionSchema.virtual('transactionType').get(function () {
+  return this.type;
+});
 
 // Virtual for referenceOrder to keep backward compatibility
 inventoryTransactionSchema.virtual('referenceOrder').get(function () {
@@ -53,3 +66,4 @@ inventoryTransactionSchema.virtual('referenceOrder').get(function () {
 inventoryTransactionSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('InventoryTransaction', inventoryTransactionSchema);
+

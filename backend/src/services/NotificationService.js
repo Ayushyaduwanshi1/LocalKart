@@ -33,7 +33,18 @@ class NotificationService {
     });
   }
 
+  static async notifyOrderProcessing(order) {
+    return this.sendNotification({
+      title: 'Order Processing',
+      message: `Your order ${order.orderNumber} is being prepared and packed by the store.`,
+      type: 'ORDER_CONFIRMED',
+      link: `/orders/${order._id}`,
+      metadata: { orderId: order._id, orderNumber: order.orderNumber },
+    });
+  }
+
   static async notifyOrderPacked(order) {
+
     return this.sendNotification({
       title: 'Order Packed',
       message: `Your order ${order.orderNumber} has been packed and is ready for dispatch.`,

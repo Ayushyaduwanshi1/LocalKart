@@ -79,6 +79,7 @@ class DeliveryService {
 
       if (order) {
         order.orderStatus = 'DELIVERED';
+        order.deliveredAt = delivery.deliveredAt;
         // If Cash on Delivery, finalize payment as PAID
         if (order.paymentMethod === 'COD' || order.paymentMethod === 'CASH') {
           order.paymentStatus = 'PAID';

@@ -62,11 +62,20 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
-  res.status(error.statusCode || 500).json({
+  const response = {
     success: false,
     message: error.message || 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-  });
+  };
+
+  if (err.availableStock !== undefined || error.availableStock !== undefined) {
+    response.availableStock = err.availableStock !== undefined ? err.availableStock : error.availableStock;
+  }
+
+  if (process.env.NODE_ENV === 'development' && err.stack) {
+    response.error = err.stack;
+  }
+
+  res.status(error.statusCode || 500).json(response);
 };
 
 module.exports = { errorHandler };

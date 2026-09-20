@@ -159,6 +159,9 @@ const orderSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    deliveredAt: {
+      type: Date,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -166,9 +169,16 @@ const orderSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+orderSchema.virtual('customerId').get(function () {
+  return this.customer;
+});
 
 orderSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);
+

@@ -43,8 +43,11 @@ const POSPage = () => {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [customerPincode, setCustomerPincode] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customerFound, setCustomerFound] = useState(false);
+  const [customerLookupDone, setCustomerLookupDone] = useState(false);
 
   // Modals & Confirmation
   const [completedOrder, setCompletedOrder] = useState(null);
@@ -81,6 +84,7 @@ const POSPage = () => {
   // Fast Phone Lookup
   const handlePhoneLookup = async (phoneToLook) => {
     setCustomerPhone(phoneToLook);
+    setErrorMessage('');
     const clean = phoneToLook.replace(/[^0-9]/g, '');
     if (clean.length >= 10) {
       try {
@@ -90,20 +94,30 @@ const POSPage = () => {
           setSelectedCustomerId(cust._id);
           setCustomerName(cust.name);
           setCustomerAddress(cust.address || '');
+          setCustomerPincode(cust.pincode || '');
+          setCustomerEmail(cust.email || '');
           setCustomerFound(true);
+          setCustomerLookupDone(true);
         }
       } catch (err) {
         // Customer not found: keep name blank for inline creation
         setCustomerFound(false);
+        setCustomerLookupDone(true);
         setSelectedCustomerId('');
       }
+    } else {
+      setCustomerLookupDone(false);
+      setCustomerFound(false);
+      setSelectedCustomerId('');
     }
   };
 
-  // Add Product to Cart
+
+  // Add Product to Cart with strict stock check
   const handleAddToCart = (product) => {
+    setErrorMessage('');
     if (product.stockQuantity <= 0) {
-      alert(`"${product.name}" is OUT OF STOCK. Available: 0 ${product.unit}`);
+      setErrorMessage(`"${product.name}" is OUT OF STOCK. Available: 0 ${product.unit}`);
       return;
     }
 
@@ -111,7 +125,7 @@ const POSPage = () => {
       const existing = prev.find((item) => item.product._id === product._id);
       if (existing) {
         if (existing.quantity >= product.stockQuantity) {
-          alert(`Cannot add more than available stock (${product.stockQuantity} ${product.unit})`);
+          setErrorMessage(`Insufficient stock. Only ${product.stockQuantity} ${product.unit} available.`);
           return prev;
         }
         return prev.map((item) =>
@@ -137,19 +151,20 @@ const POSPage = () => {
       handleAddToCart(matched);
       setBarcodeInput('');
     } else {
-      alert(`No product found with Barcode/SKU "${barcodeInput}"`);
+      setErrorMessage(`No product found with Barcode/SKU "${barcodeInput}"`);
     }
   };
 
-  // Modify quantity
+  // Modify quantity with immediate stock check
   const handleUpdateQty = (productId, newQty) => {
+    setErrorMessage('');
     if (newQty <= 0) {
       handleRemoveItem(productId);
       return;
     }
     const product = products.find((p) => p._id === productId);
     if (product && newQty > product.stockQuantity) {
-      alert(`Insufficient stock! Only ${product.stockQuantity} ${product.unit} available.`);
+      setErrorMessage(`Insufficient stock. Only ${product.stockQuantity} ${product.unit} available.`);
       return;
     }
 
@@ -170,6 +185,14 @@ const POSPage = () => {
     setDeliveryCharge(0);
     setPaidAmountInput('');
     setErrorMessage('');
+    setCustomerPhone('');
+    setCustomerName('');
+    setCustomerAddress('');
+    setCustomerPincode('');
+    setCustomerEmail('');
+    setSelectedCustomerId('');
+    setCustomerFound(false);
+    setCustomerLookupDone(false);
   };
 
   // Bulk add from WhatsApp modal
@@ -204,11 +227,21 @@ const POSPage = () => {
     ? Math.max(0, Number(paidAmountInput))
     : (paymentMethod === 'COD' ? 0 : grandTotal);
 
-  // Submit Order
+  // Submit Order with strict validations & double-click protection
   const handleCheckout = async () => {
+    if (isSubmitting) return;
+
     if (cart.length === 0) {
-      alert('Please add at least one product to the bill.');
+      setErrorMessage('Please add at least one product to the order.');
       return;
+    }
+
+    // Front-end stock check before sending
+    for (const item of cart) {
+      if (item.quantity > item.product.stockQuantity) {
+        setErrorMessage(`Insufficient stock. Only ${item.product.stockQuantity} ${item.product.unit} available for "${item.product.name}".`);
+        return;
+      }
     }
 
     setErrorMessage('');
@@ -221,7 +254,9 @@ const POSPage = () => {
           ? {
               name: customerName || 'Walk-in Customer',
               phone: customerPhone || '9876543210',
-              address: customerAddress,
+              address: customerAddress || '',
+              pincode: customerPincode || '',
+              email: customerEmail || '',
             }
           : undefined,
         items: cart.map((item) => ({
@@ -235,7 +270,11 @@ const POSPage = () => {
         paidAmount: effectivePaidAmount,
         orderStatus: 'CONFIRMED',
         orderSource,
-        deliveryAddress: customerAddress ? { address: customerAddress, phone: customerPhone } : undefined,
+        deliveryAddress: (customerAddress || customerPincode) ? {
+          address: customerAddress || '',
+          pincode: customerPincode || '',
+          phone: customerPhone || '',
+        } : undefined,
         notes,
       };
 
@@ -244,16 +283,14 @@ const POSPage = () => {
         setCompletedOrder(res.data.data);
         setShowReceipt(true);
         handleClearCart();
-        setCustomerPhone('');
-        setCustomerName('');
-        setCustomerAddress('');
-        setSelectedCustomerId('');
-        fetchInitialData(); // Refresh stock numbers from DB
+        fetchInitialData(); // Refresh live stock numbers from DB
       }
     } catch (err) {
       const respData = err.response?.data;
       if (respData?.availableStock !== undefined) {
-        setErrorMessage(`${respData.message} (Available in stock: ${respData.availableStock})`);
+        setErrorMessage(`${respData.message || 'Insufficient stock'}. Only ${respData.availableStock} available in inventory.`);
+        // Live update product stock in state
+        fetchInitialData();
       } else {
         setErrorMessage(respData?.message || 'Failed to process order');
       }
@@ -349,7 +386,7 @@ const POSPage = () => {
           ))}
         </div>
 
-        {/* Product Cards Grid */}
+        {/* Product Cards Grid with prominent stock display */}
         <div className="flex-1 overflow-y-auto pt-3 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
           {filteredProducts.map((p) => {
             const isOutOfStock = p.stockQuantity <= 0;
@@ -406,7 +443,7 @@ const POSPage = () => {
       </div>
 
       {/* Right Column: Billing & Cart Drawer (40%) */}
-      <div className="w-full lg:w-[420px] flex flex-col bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 overflow-hidden">
+      <div className="w-full lg:w-[450px] flex flex-col bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 overflow-hidden">
         {/* Customer Header */}
         <div className="pb-3 border-b border-slate-100 space-y-2">
           <div className="flex items-center justify-between">
@@ -415,52 +452,91 @@ const POSPage = () => {
               Customer Details
             </span>
             <div className="flex items-center gap-1 text-[11px]">
-              <span className="text-slate-400">Source:</span>
+              <span className="text-slate-400 font-medium">Source:</span>
               <select
                 value={orderSource}
                 onChange={(e) => setOrderSource(e.target.value)}
-                className="bg-slate-100 font-semibold text-slate-700 rounded-lg px-2 py-0.5 focus:outline-none"
+                className="bg-slate-100 font-bold text-slate-800 rounded-lg px-2 py-0.5 focus:outline-none"
               >
-                <option value="WALK_IN">Walk-In</option>
-                <option value="WHATSAPP">WhatsApp</option>
-                <option value="PHONE">Phone Call</option>
-                <option value="WEBSITE">Website</option>
+                <option value="WHATSAPP">WHATSAPP</option>
+                <option value="PHONE">PHONE</option>
+                <option value="WALK_IN">WALK_IN</option>
+                <option value="WEBSITE">WEBSITE</option>
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <input
-                type="text"
-                placeholder="Phone (e.g. 9811012345)"
-                value={customerPhone}
-                onChange={(e) => handlePhoneLookup(e.target.value)}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500 font-mono text-xs"
-              />
+          {/* Customer Lookup Feedback Banner */}
+          {customerLookupDone && (
+            <div className="text-[11px] py-1 px-2.5 rounded-lg">
+              {customerFound ? (
+                <div className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 flex items-center gap-1.5 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Existing customer verified: {customerName}</span>
+                </div>
+              ) : (
+                <div className="text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 flex items-center gap-1.5 font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  <span>New customer: will be created automatically</span>
+                </div>
+              )}
             </div>
-            <div>
-              <input
-                type="text"
-                placeholder="Customer Name"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
-              />
-            </div>
-          </div>
+          )}
 
-          {orderSource !== 'WALK_IN' && (
+          {/* Customer Fields: Phone, Name, Address, Pincode, Email */}
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <input
+                  type="text"
+                  placeholder="Phone Number (10 digits)*"
+                  value={customerPhone}
+                  onChange={(e) => handlePhoneLookup(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500 font-mono text-xs"
+                />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  placeholder="Customer Name*"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
+                />
+              </div>
+            </div>
+
             <div>
               <input
                 type="text"
-                placeholder="Delivery Address / Apartment / Sector..."
+                placeholder="Delivery Address / House No. / Street..."
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
               />
             </div>
-          )}
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <input
+                  type="text"
+                  placeholder="Pincode"
+                  value={customerPincode}
+                  onChange={(e) => setCustomerPincode(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <input
+                  type="email"
+                  placeholder="Email (Optional)"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500 text-xs"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Cart Items List */}
@@ -478,6 +554,7 @@ const POSPage = () => {
                   <h5 className="font-semibold text-slate-800 truncate">{item.product.name}</h5>
                   <span className="text-[10px] text-slate-400">
                     ₹{item.product.sellingPrice} × {item.quantity} {item.product.unit}
+                    <span className="ml-1 text-emerald-600 font-medium">({item.product.stockQuantity} avail)</span>
                   </span>
                 </div>
 
@@ -515,7 +592,7 @@ const POSPage = () => {
         {/* Bill Calculations & Checkout */}
         <div className="pt-3 border-t border-slate-200/80 space-y-2 text-xs">
           {errorMessage && (
-            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] flex items-center gap-1.5">
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] flex items-center gap-1.5 font-medium">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
               <span>{errorMessage}</span>
             </div>
@@ -563,8 +640,8 @@ const POSPage = () => {
           </div>
 
           {/* Payment Method Selector */}
-          <div className="grid grid-cols-4 gap-1 pt-1">
-            {['CASH', 'UPI', 'CARD', 'COD'].map((method) => (
+          <div className="grid grid-cols-5 gap-1 pt-1">
+            {['CASH', 'UPI', 'CARD', 'COD', 'ONLINE'].map((method) => (
               <button
                 key={method}
                 type="button"
@@ -573,7 +650,7 @@ const POSPage = () => {
                   if (method === 'COD') setPaidAmountInput('0');
                   else if (paidAmountInput === '0') setPaidAmountInput('');
                 }}
-                className={`py-1.5 rounded-xl font-bold text-[11px] border transition-all ${
+                className={`py-1.5 rounded-xl font-bold text-[10px] border transition-all ${
                   paymentMethod === method
                     ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -632,7 +709,7 @@ const POSPage = () => {
               className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
             >
               <Printer className="w-4 h-4" />
-              <span>{isSubmitting ? 'Charging...' : `Charge ₹${grandTotal.toFixed(2)} & Print`}</span>
+              <span>{isSubmitting ? 'Processing Order...' : `Create Order & Charge ₹${grandTotal.toFixed(2)}`}</span>
             </button>
           </div>
         </div>
@@ -656,5 +733,6 @@ const POSPage = () => {
     </div>
   );
 };
+
 
 export default POSPage;

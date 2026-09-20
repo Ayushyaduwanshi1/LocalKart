@@ -49,9 +49,22 @@ const paymentSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+paymentSchema.virtual('orderId').get(function () {
+  return this.order;
+});
+paymentSchema.virtual('paymentMethod').get(function () {
+  return this.method;
+});
+paymentSchema.virtual('paymentStatus').get(function () {
+  return this.status;
+});
 
 paymentSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Payment', paymentSchema);
+

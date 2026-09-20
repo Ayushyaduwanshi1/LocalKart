@@ -42,6 +42,10 @@ const deliverySchema = new mongoose.Schema(
     deliveredAt: {
       type: Date,
     },
+    customerName: {
+      type: String,
+      default: '',
+    },
     notes: {
       type: String,
       default: '',
@@ -49,9 +53,28 @@ const deliverySchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+deliverySchema.virtual('orderId').get(function () {
+  return this.order;
+});
+deliverySchema.virtual('customerId').get(function () {
+  return this.customer;
+});
+deliverySchema.virtual('deliveryPartnerId').get(function () {
+  return this.deliveryPartner;
+});
+deliverySchema.virtual('deliveryStatus').get(function () {
+  return this.status;
+});
+deliverySchema.virtual('deliveryNotes').get(function () {
+  return this.notes;
+});
 
 deliverySchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Delivery', deliverySchema);
+
